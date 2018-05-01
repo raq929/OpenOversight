@@ -77,14 +77,9 @@ def add_officer_profile(form):
 
 
 def edit_officer_profile(officer, form):
-    officer.first_name = form.first_name.data
-    officer.last_name = form.last_name.data
-    officer.middle_initial = form.middle_initial.data
-    officer.race = form.race.data
-    officer.gender = form.gender.data
-    officer.birth_year = form.birth_year.data
-    officer.employment_date = form.employment_date.data
-    officer.department_id = form.department.data.id
+    for field, data in form.data.iteritems():
+        setattr(officer, field, data)
+
     db.session.add(officer)
     db.session.commit()
     return officer
