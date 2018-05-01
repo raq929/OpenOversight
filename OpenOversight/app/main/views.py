@@ -18,7 +18,7 @@ from ..utils import (grab_officers, roster_lookup, upload_file, compute_hash,
                      serve_image, compute_leaderboard_stats, get_random_image,
                      allowed_file, add_new_assignment, edit_existing_assignment,
                      add_officer_profile, edit_officer_profile,
-                    ac_can_edit_officer)
+                    ac_can_edit_officer, add_department_query, add_unit_query)
 from .forms import (FindOfficerForm, FindOfficerIDForm, AddUnitForm,
                     FaceTag, AssignmentForm, DepartmentForm, AddOfficerForm,
                     BasicOfficerForm)
@@ -148,8 +148,13 @@ def officer_profile(officer_id):
 @main.route('/officer/<int:officer_id>/assignment/<int:assignment_id>',
             methods=['GET', 'POST'])
 @login_required
-@admin_required
+@ac_or_admin_required
 def edit_assignment(officer_id, assignment_id):
+    if current_user.is_area_coordinator and not current_user.is_administrator:
+        officer = Officer.query.filter_by(id=officer_id).one()
+        if not ac_can_edit_officer(officer, current_user):
+            abort(403)
+
     assignment = Assignment.query.filter_by(id=assignment_id).one()
     form = AssignmentForm(obj=assignment)
     if form.validate_on_submit():
@@ -245,11 +250,11 @@ def add_department():
 
 @main.route('/officer/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@ac_or_admin_required
 def add_officer():
-    first_department = Department.query.first()
-    first_unit = Unit.query.first()
-    form = AddOfficerForm(department=first_department, unit=first_unit)
+    form = AddOfficerForm()
+    add_unit_query(form, current_user)
+    add_department_query(form, current_user)
     if form.validate_on_submit():
         officer = add_officer_profile(form)
         flash('New Officer {} added to OpenOversight'.format(officer.last_name))
@@ -267,11 +272,7 @@ def edit_officer(officer_id):
     if current_user.is_area_coordinator and not current_user.is_administrator:
         if not ac_can_edit_officer(officer, current_user):
             abort(403)
-        form.department.query = Department.query\
-            .filter_by(id=current_user.ac_department_id)
-    else:
-        form.department.query = Department.query.all()
-
+    add_department_query(form, current_user)
 
     if form.validate_on_submit():
         officer = edit_officer_profile(officer, form)
@@ -283,11 +284,10 @@ def edit_officer(officer_id):
 
 @main.route('/unit/new', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@ac_or_admin_required
 def add_unit():
-    first_department = Department.query.first()
-    form = AddUnitForm(department=first_department)
-
+    form = AddUnitForm()
+    add_department_query(form, current_user)
     if form.validate_on_submit():
         unit = Unit(descrip=form.descrip.data,
                     department_id=form.department.data.id)
